@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <stdbool.h>
 
 struct User {
 	char* name;
@@ -9,7 +9,7 @@ struct User {
 	struct User* next;
 };
 
-struct User* head;
+struct User* head; // global head to the linked list where we store the tweeters
 
 
 void addTweeter(char* tweeter) {
@@ -23,6 +23,7 @@ void addTweeter(char* tweeter) {
 	}
 	struct User* prev = NULL;
 	struct User* temp = head;
+	// iterate through the linked list to see if it exists already
 	while(temp != NULL) {
 		if (strcmp(temp->name,tweeter) == 0) {
 			temp->numTweets++;
@@ -31,7 +32,7 @@ void addTweeter(char* tweeter) {
 		prev = temp;
 		temp = temp->next;
 	}
-
+	// if it doesn't already exist in the linked list
 	struct User* newNode = malloc(sizeof(struct User));
 	newNode->name = malloc(strlen(tweeter) *sizeof(char));
 	strcpy(newNode->name,tweeter);
@@ -41,27 +42,50 @@ void addTweeter(char* tweeter) {
 }
 
 
-//global array of structs maybe?
-//or a global linked list
-//and we track the top ten dynamically?
-
-// 0,1,2,3,4,5,6,7,8 (name)
-
 
 int parseHeader (char* line) {
-	// TODO: ADD checking 
+	if (line == NULL || strlen(line) == 0) {
+		return -1;
+	}
+	int length = strlen(line);
 	int index = 0;
-	//printf("%s\n", line);
-	char* tok = strtok(line, ",");
-	
-	
-	while(tok != NULL) {
-		if (strcmp(tok, "name") == 0) { // need to null terminate?
+	int charIndex = 0;
+	// checking to see if the first element in the csv header is name
+	if (line[0] != ',') {
+		char linecopy[length];
+		strcpy(linecopy,line);
+		char* tok = strtok(linecopy + charIndex, ",");
+		if (tok == NULL) {
+			return -1;
+		}
+		if (strcmp(tok, "name") == 0) { 
 			return index;
 		}
-		tok = strtok(NULL, ",");
+		else if (strcmp(tok, "\"name\"") == 0) {
+			return index;
+		}
+	}
 
-		index++;
+	while(charIndex < length - 1) {
+		if (line[charIndex] == ',') {
+			index++;
+			if (line[charIndex + 1] != ',') {
+				char linecopy[length];
+				strcpy(linecopy,line);
+				char* tok = strtok(linecopy + charIndex, ",");
+				if (tok == NULL) {
+					return -1;
+				}
+				if (strcmp(tok, "name") == 0) { 
+					return index;
+				}
+				else if (strcmp(tok, "\"name\"") == 0) {
+					return index;
+				}
+			}
+
+		}
+		charIndex++;
 	}
 
 	return -1;
@@ -69,57 +93,57 @@ int parseHeader (char* line) {
 
 
 int parseLine(char* line, int targetCol) {
+	if (line == NULL) {
+		return -1;
+	}
 	int numCommaSeen = 0;
 	int charIndex = 0;
+	int length = strlen(line);
+	char* tok;
 
-	while(numCommaSeen < targetCol) {
+	if (length == 0) {
+		return 0;
+	}
+	if (length == 1 && line[0] == '\n') {
+		return 0;
+	}
+	// special case where the first entry is the name
+	if (targetCol == 0) {
+		if (line[0] == ',') {
+			tok = "";
+		}
+		else {
+			tok = strtok(line,",");
+			if (tok == NULL) {
+				return -1;
+			}
+		}	
+		addTweeter(tok);
+		return 0;
+	}
+
+
+	while (charIndex < length - 1) {
 		if (line[charIndex] == ',') {
-			numCommaSeen++;
+				numCommaSeen++;
+		}
+
+		if (numCommaSeen == targetCol) {
+			tok = strtok(line + charIndex, ",");
+			if (line[charIndex + 1] == ',') {
+				tok = "";
+			}
+			if (tok == NULL) {
+				return -1;
+			}
+
+			addTweeter(tok);
+			return 0;
 		}
 		charIndex++;
 	}
 
-	char* tok = strtok(line + charIndex, ",");
-	addTweeter(tok);
-
-	//printf("%s\n",tok);
-	//return 0;
-	/*
-	char *copyStr = malloc(sizeof(targetCol));
-	strncpy(copyStr,line,targetCol+1);
-	char *copyTok = strtok(copyStr, ",");
-	if(copyTok == NULL) {
-		return -1;
-	}
-	int indexCount = 0;
-	int offset = 0;
-	printf("%d\n", targetCol);
-	while(indexCount != targetCol) {
-		printf("%d", indexCount);
-		printf("%s\n", copyTok);
-		if(strcmp(copyTok,"\n")) {
-			offset++;
-		}
-		copyTok = strtok(NULL, ",");
-		indexCount++;
-	}
-	free(copyStr);
-	
-	char *tok = strtok(line, ",");
-	
-	int numItem = 1;
-	while(tok != NULL) {
-		if(numItem == (targetCol - offset)) {
-			printf("Name:\t%s\n", tok);
-			return 0;
-		}
-		//printf("%s\n", tok);
-		tok = strtok(NULL, ",");
-		//tok = strsep(&line,",");
-		numItem++;
-	}
-	*/	
-	return 0;
+	return -1;
 	
 }
 
@@ -130,7 +154,6 @@ void printTopTen() {
 	}
 	struct User* temp = head;
 	while(temp != NULL) {
-		//printf("%s:%d\n", temp->name, temp->numTweets);
 		for (int i = 0; i < 10; i++) {
 			if (temp->numTweets > topTweeters[i].numTweets) {
 				// need to shift over all the other elements 
@@ -157,18 +180,15 @@ void printTopTen() {
 }
 
 int main(int argc, char** argv) {
-	//int argc, char** argv
-	
 	if (argc != 2) {
-
-		printf("Invalid Input Format1.\n"); // not sure what to actually print
+		printf("Invalid Input Format.\n"); 
+		return 0;
 	}
 
-
 	FILE *filepointer = fopen(argv[1], "r");
-	
+	int numLines = 0;
 	if (filepointer == NULL) {
-		printf("Invalid Input Format2");
+		printf("Invalid Input Format\n");
 		return 0;
 	}
 
@@ -176,30 +196,32 @@ int main(int argc, char** argv) {
 	int numItem = 0;
 	int nameCol = 0;
 	if (fgets(buffer, 1024, filepointer) == NULL) {
-		printf("Invalid Input Format3");
+		printf("Invalid Input Format\n");
 		return 0;
 	}
 
 	nameCol = parseHeader(buffer);
-	//printf("%d\n",nameCol);
-
 	if (nameCol == -1) {
-		printf("Invalid Input Format4");
+		printf("Invalid Input Format\n");
 		return 0;
 	}
 
 	while(fgets(buffer, 1024, filepointer)) {
-		if (parseLine(buffer, nameCol) == -1) {
-			printf("Invalid Input Format5");
+		numLines++;
+		if (numLines > 20000) {
+			printf("Invalid Input Format\n");
+			fclose(filepointer);
 			return 0;
 		}
-		//return 0; //FIXME
-
+		if (parseLine(buffer, nameCol) == -1) {
+			printf("Invalid Input Format\n");
+			fclose(filepointer);
+			return 0;
+		}
+		
 	}
-	//printf("%s:%d\n", head->name, head->numTweets);
+
 	printTopTen();
-
-
 	fclose(filepointer);
 	return 0;
 }
